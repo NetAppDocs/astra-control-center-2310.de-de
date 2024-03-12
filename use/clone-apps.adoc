@@ -1,0 +1,94 @@
+---
+sidebar: sidebar 
+permalink: use/clone-apps.html 
+keywords: clone app, clone storage, clone persistent storage, clone data, move workload, clone data, migrate data, data migration, move storage, move application, move data 
+summary: Eine vorhandene Applikation klonen, um eine doppelte Applikation auf demselben Kubernetes-Cluster oder einem anderen Cluster zu erstellen. Das Klonen kann sich leisten, wenn Sie Applikationen und Storage von einem Kubernetes Cluster zu einem anderen verschieben müssen. Beispielsweise möchten Sie Workloads über eine CI-CD-Pipeline und über Kubernetes-Namespaces verschieben. 
+---
+= Klonen und Migrieren von Applikationen
+:hardbreaks:
+:allow-uri-read: 
+:icons: font
+:imagesdir: ../media/use/
+
+
+[role="lead"]
+Eine vorhandene Applikation kann geklont werden, um eine doppelte Applikation auf demselben Kubernetes-Cluster oder einem anderen Cluster zu erstellen. Wenn Astra Control eine Applikation klonen, wird ein Klon Ihrer Applikationskonfiguration und des persistenten Storage erstellt.
+
+Das Klonen kann sich leisten, wenn Sie Applikationen und Storage von einem Kubernetes Cluster zu einem anderen verschieben müssen. So möchten Sie beispielsweise Workloads über eine CI/CD-Pipeline und über Kubernetes-Namespaces verschieben. Sie können die Astra Control Center-UI oder verwenden https://docs.netapp.com/us-en/astra-automation["Astra Control API"^] Zum Klonen und Migrieren von Applikationen
+
+.Bevor Sie beginnen
+* *Zieldatenträger prüfen*: Wenn Sie in eine andere Speicherklasse klonen, stellen Sie sicher, dass die Speicherklasse den gleichen persistenten Zugriffsmodus für Volumes verwendet (z. B. ReadWriteMany). Der Klonvorgang schlägt fehl, wenn der Zugriffsmodus des persistenten Volume-Ziels anders ist. Wenn das persistente Quell-Volume beispielsweise den RWX-Zugriffsmodus verwendet, wählen Sie eine Ziel-Storage-Klasse aus, die RWX nicht bereitstellen kann, wie z. B. Azure Managed Disks, AWS EBS, Google Persistent Disk oder `ontap-san`, Führt dazu, dass der Klonvorgang fehlschlägt. Weitere Informationen zu den Zugriffsmodi für persistente Volumes finden Sie im https://kubernetes.io/docs/concepts/storage/persistent-volumes/#access-modes["Kubernetes"^] Dokumentation.
+* Um Applikationen in einem anderen Cluster zu klonen, müssen Sie sicherstellen, dass die Cloud-Instanzen, die die Quell- und Ziel-Cluster enthalten (wenn sie nicht identisch sind), einen Standard-Bucket haben. Für jede Cloud-Instanz müssen Sie einen Standard-Bucket zuweisen.
+* Während Klonvorgängen müssen Applikationen, die eine Ressource oder Webhooks der ProgresClass benötigen, nicht über die Ressourcen verfügen, die bereits auf dem Ziel-Cluster definiert sind.
+
+
+[NOTE]
+====
+Beim Klonen von Applikationen in OpenShift-Umgebungen muss das Astra Control Center OpenShift erlauben, Volumes anzuhängen und die Eigentümerschaft von Dateien zu ändern. Daher müssen Sie eine ONTAP Volume Export-Richtlinie konfigurieren, damit diese Vorgänge möglich sind. Sie können dies mit folgenden Befehlen tun:
+
+. `export-policy rule modify -vserver <storage virtual machine name> -policyname <policy name> -ruleindex 1 -superuser sys`
+. `export-policy rule modify -vserver <storage virtual machine name> -policyname <policy name> -ruleindex 1 -anon 65534`
+
+
+====
+.Einschränkungen beim Klonen
+* *Explicit Storage class*: Wenn Sie eine App mit einer explizit eingestellten Speicherklasse bereitstellen und die App klonen müssen, muss das Ziel-Cluster über die ursprünglich angegebene Speicherklasse verfügen. Das Klonen einer Applikation mit einer explizit festgelegten Storage-Klasse auf ein Cluster ohne dieselbe Storage-Klasse schlägt fehl.
+* *Anwendungen mit Unterstützung der ontap-nas-Wirtschaft*: Klonvorgänge können nicht verwendet werden, wenn die Storage-Klasse Ihrer Applikation von unterstützt wird `ontap-nas-economy` Treiber. Sie können es jedoch link:../use/protect-apps.html#enable-backup-and-restore-for-ontap-nas-economy-operations["Backup und Restore für den wirtschaftlichen Betrieb von ontap-nas"].
+* *Klone und Benutzerbeschränkungen*: Jeder Mitgliedsbenutzer mit Namespace-Beschränkungen durch Namespace-Name/ID oder durch Namespace-Labels kann eine Anwendung in einem neuen Namespace im selben Cluster oder einem anderen Cluster im Konto ihres Unternehmens klonen oder wiederherstellen. Derselbe Benutzer kann jedoch nicht auf die geklonte oder wiederhergestellte Anwendung im neuen Namespace zugreifen. Nachdem durch einen Klon- oder Wiederherstellungsvorgang ein neuer Namespace erstellt wurde, kann der Kontoadministrator/Kontoinhaber das Mitgliedskonto bearbeiten und Rolleneinschränkungen aktualisieren, damit der betroffene Benutzer Zugriff auf den neuen Namespace gewährt.
+* *Klone verwenden Standard-Buckets*: Während einer App-Sicherung oder App-Wiederherstellung können Sie optional eine Bucket-ID angeben. Ein Applikationsklonvorgang verwendet jedoch immer den definierten Standard-Bucket. Es besteht keine Möglichkeit, die Buckets für einen Klon zu ändern. Wenn Sie die Kontrolle darüber haben möchten, welcher Bucket verwendet wird, können Sie entweder link:../use/manage-buckets.html#edit-a-bucket["Ändern Sie den Bucket-Standard"] Oder machen Sie ein link:../use/protect-apps.html#create-a-backup["Backup"] Gefolgt von A link:../use/restore-apps.html["Wiederherstellen"] Separat.
+* *Mit Jenkins CI*: Wenn Sie eine vom Betreiber implementierte Instanz von Jenkins CI klonen, müssen Sie die persistenten Daten manuell wiederherstellen. Dies ist eine Einschränkung des Bereitstellungsmodells der Applikation.
+* *Mit S3 Buckets*: S3 Buckets im Astra Control Center melden keine verfügbare Kapazität. Bevor Sie Backups oder Klonanwendungen durchführen, die von Astra Control Center gemanagt werden, sollten Sie die Bucket-Informationen im ONTAP oder StorageGRID Managementsystem prüfen.
+* *Mit einer bestimmten Version von PostgreSQL*: App-Klone innerhalb desselben Clusters schlagen mit dem Bitnami PostgreSQL 11.5.0-Chart konsequent fehl. Um erfolgreich zu klonen, verwenden Sie eine frühere oder höhere Version des Diagramms.
+
+
+.OpenShift-Überlegungen
+* *Cluster und OpenShift Versionen*: Wenn Sie eine App zwischen Clustern klonen, müssen die Quell- und Ziel-Cluster die gleiche Verteilung von OpenShift sein. Wenn Sie beispielsweise eine App aus einem OpenShift 4.7-Cluster klonen, verwenden Sie ein Ziel-Cluster, das auch OpenShift 4.7 ist.
+* *Projekte und UIDs*: Wenn Sie ein Projekt zum Hosten einer App auf einem OpenShift-Cluster erstellen, wird dem Projekt (oder Kubernetes-Namespace) eine SecurityContext-UID zugewiesen. Um Astra Control Center zum Schutz Ihrer App zu aktivieren und die App in ein anderes Cluster oder Projekt in OpenShift zu verschieben, müssen Sie Richtlinien hinzufügen, mit denen die App als beliebige UID ausgeführt werden kann. Als Beispiel erteilen die folgenden OpenShift-CLI-Befehle der WordPress-App die entsprechenden Richtlinien.
++
+`oc new-project wordpress`
+`oc adm policy add-scc-to-group anyuid system:serviceaccounts:wordpress`
+`oc adm policy add-scc-to-user privileged -z default -n wordpress`
+
+
+
+.Schritte
+. Wählen Sie *Anwendungen*.
+. Führen Sie einen der folgenden Schritte aus:
++
+** Wählen Sie das Menü Optionen in der Spalte *Aktionen* für die gewünschte App aus.
+** Wählen Sie den Namen der gewünschten App aus, und wählen Sie rechts oben auf der Seite die Dropdown-Liste Status aus.
+
+
+. Wählen Sie *Clone*.
+. Geben Sie Details für den Klon an:
++
+** Geben Sie einen Namen ein.
+** Wählen Sie ein Ziel-Cluster für den Klon.
+** Geben Sie die Ziel-Namespaces für den Klon ein. Jeder mit der App verknüpfte Quell-Namespace ordnet den von Ihnen definierten Ziel-Namespace zu.
++
+
+NOTE: Astra Control erstellt im Rahmen des Klonvorgangs neue Ziel-Namespaces. Die angegebenen Ziel-Namespaces dürfen nicht bereits im Ziel-Cluster vorhanden sein.
+
+** Wählen Sie *Weiter*.
+** Wählen Sie aus, ob die der App zugeordnete ursprüngliche Storage-Klasse beibehalten oder eine andere Storage-Klasse ausgewählt werden soll.
++
+
+NOTE: Sie können die Storage-Klasse einer App zu einer Storage-Klasse eines nativen Cloud-Providers oder einer anderen unterstützten Storage-Klasse migrieren und eine App von einer Storage-Klasse migrieren, die von unterstützt wird `ontap-nas-economy` Zu einer Storage-Klasse, die von unterstützt wird `ontap-nas` Oder kopieren Sie die App in ein anderes Cluster mit einer Storage-Klasse, die von der unterstützt wird `ontap-nas-economy` Treiber.
+
++
+
+NOTE: Wenn Sie eine andere Storage-Klasse auswählen und diese Storage-Klasse zum Zeitpunkt der Wiederherstellung nicht vorhanden ist, wird ein Fehler zurückgegeben.
+
+
+
+. Wählen Sie *Weiter*.
+. Überprüfen Sie die Informationen über den Klon und wählen Sie *Clone*.
+
+
+.Ergebnis
+Astra Control klont die App basierend auf den von Ihnen angegebenen Informationen. Der Klonvorgang ist erfolgreich, wenn der neue Applikationsklon ausgeführt wird `Healthy` Geben Sie auf der Seite *Anwendungen* an.
+
+Nachdem durch einen Klon- oder Wiederherstellungsvorgang ein neuer Namespace erstellt wurde, kann der Kontoadministrator/Kontoinhaber das Mitgliedskonto bearbeiten und Rolleneinschränkungen aktualisieren, damit der betroffene Benutzer Zugriff auf den neuen Namespace gewährt.
+
+
+NOTE: Nach einer Datensicherungsoperation (Klonen, Backup oder Wiederherstellung) und einer anschließenden Größenanpassung des persistenten Volumes beträgt die Verzögerung bis zu zwanzig Minuten, bevor die neue Volume-Größe in der UI angezeigt wird. Der Datensicherungsvorgang ist innerhalb von Minuten erfolgreich und Sie können mit der Management Software für das Storage-Backend die Änderung der Volume-Größe bestätigen.

@@ -1,0 +1,16 @@
+---
+section: concepts
+title: Konzepte
+entries:
+- title: Architektur und Komponenten
+  url: "/concepts/architecture.html"
+- title: Datensicherung
+  url: "/concepts/data-protection.html"
+- title: Lizenzierung
+  url: "/concepts/licensing.html"
+- title: Applikationsmanagement
+  url: "/concepts/app-management.html"
+- title: Speicherklassen und PV-Größe
+  url: "/concepts/choose-class-and-size.html"
+- title: Benutzerrollen und Namespaces
+  url: "/concepts/user-roles-namespaces.html"

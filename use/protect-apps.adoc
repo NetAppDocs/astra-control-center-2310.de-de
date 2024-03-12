@@ -1,0 +1,337 @@
+---
+sidebar: sidebar 
+permalink: use/protect-apps.html 
+keywords: backup, back up, backup apps, back up apps, snapshots, snapshot an app, take a snapshot, take a backup, view backups, view snapshots, set policy, set schedule, schedule backups, schedule snapshots 
+summary: Schützen Sie Ihre Applikationen, indem Sie Snapshots und Backups über eine automatisierte Sicherungsrichtlinie oder Ad-hoc-Erstellung erstellen. 
+---
+= Sichern von Applikationen durch Snapshots und Backups
+:hardbreaks:
+:allow-uri-read: 
+:icons: font
+:imagesdir: ../media/use/
+
+
+[role="lead"]
+Alle Applikationen werden gesichert, indem Snapshots und Backups über eine automatisierte Sicherungsrichtlinie oder im Ad-hoc-Verfahren erstellt werden. Sie können die Astra Control Center-UI oder verwenden https://docs.netapp.com/us-en/astra-automation["Die Astra Control API"^] Um Anwendungen zu schützen.
+
+.Über diese Aufgabe
+* *Helm implementierte Apps*: Wenn Sie Helm zum Bereitstellen von Apps verwenden, benötigt Astra Control Center Helm Version 3. Das Management und Klonen von mit Helm 3 bereitgestellten Apps (oder ein Upgrade von Helm 2 auf Helm 3) werden vollständig unterstützt. Mit Helm 2 implementierte Apps werden nicht unterstützt.
+* *(nur OpenShift-Cluster) Richtlinien hinzufügen*: Wenn Sie ein Projekt zum Hosten einer App auf einem OpenShift-Cluster erstellen, wird dem Projekt (oder Kubernetes-Namespace) eine SecurityContext-UID zugewiesen. Um Astra Control Center zum Schutz Ihrer App zu aktivieren und die App in ein anderes Cluster oder Projekt in OpenShift zu verschieben, müssen Sie Richtlinien hinzufügen, mit denen die App als beliebige UID ausgeführt werden kann. Als Beispiel erteilen die folgenden OpenShift-CLI-Befehle der WordPress-App die entsprechenden Richtlinien.
++
+`oc new-project wordpress`
+`oc adm policy add-scc-to-group anyuid system:serviceaccounts:wordpress`
+`oc adm policy add-scc-to-user privileged -z default -n wordpress`
+
+
+
+Sie können die folgenden Aufgaben zum Schutz Ihrer Applikationsdaten ausführen:
+
+* <<Konfigurieren einer Sicherungsrichtlinie>>
+* <<Erstellen Sie einen Snapshot>>
+* <<Erstellen Sie ein Backup>>
+* <<Backup und Restore für den wirtschaftlichen Betrieb von ontap-nas>>
+* <<Unveränderliches Backup erstellen>>
+* <<Anzeigen von Snapshots und Backups>>
+* <<Snapshots löschen>>
+* <<Abbrechen von Backups>>
+* <<Backups löschen>>
+
+
+
+
+== Konfigurieren einer Sicherungsrichtlinie
+
+Eine Sicherungsrichtlinie sichert eine Applikation, indem Snapshots, Backups oder beides nach einem definierten Zeitplan erstellt werden. Sie können Snapshots und Backups stündlich, täglich, wöchentlich und monatlich erstellen. Außerdem können Sie die Anzahl der beizubehaltenden Kopien festlegen.
+
+Wenn Sie Backups oder Snapshots öfter als einmal pro Stunde benötigen, können Sie dies tun https://docs.netapp.com/us-en/astra-automation/workflows/workflows_before.html["Erstellen Sie mithilfe der Astra Control REST API Snapshots und Backups"^].
+
+
+NOTE: Wenn Sie eine Schutzrichtlinie definieren, die unveränderliche Backups für WORM-Buckets (Write Once Read Many) erstellt, stellen Sie sicher, dass die Aufbewahrungszeit für die Backups nicht kürzer ist als der für den Bucket konfigurierte Aufbewahrungszeitraum.
+
+
+TIP: Verschieben Sie Backup- und Replikationspläne, um Zeitplanüberschneidungen zu vermeiden. Führen Sie beispielsweise jede Stunde Backups oben in der Stunde durch, und planen Sie die Replikation, um mit einem Offset von 5 Minuten und einem Intervall von 10 Minuten zu beginnen.
+
+.Schritte
+. Wählen Sie *Anwendungen* und dann den Namen einer App aus.
+. Wählen Sie *Datenschutz*.
+. Wählen Sie *Schutzrichtlinie Konfigurieren*.
+. Legen Sie einen Sicherungszeitplan fest, indem Sie die Anzahl der Snapshots und Backups auswählen, die stündlich, täglich, wöchentlich und monatlich erstellt werden sollen.
++
+Sie können die stündlichen, täglichen, wöchentlichen und monatlichen Zeitpläne gleichzeitig festlegen. Ein Zeitplan wird erst aktiviert, wenn Sie eine Aufbewahrungsstufe festlegen.
+
++
+Wenn Sie ein Aufbewahrungsniveau für Backups festlegen, können Sie den Bucket auswählen, auf dem Sie die Backups speichern möchten.
+
++
+Im folgenden Beispiel sind vier Sicherungspläne definiert: Stündlich, täglich, wöchentlich und monatlich für Snapshots und Backups.
+
++
+image:screenshot-config-protection-policy.png["Einen Screenshot einer Beispielkonfigurationsrichtlinie, in der Sie Snapshots und Backups stündlich, täglich, wöchentlich oder monatlich erstellen können."]
+
+. Wählen Sie *Bewertung*.
+. Wählen Sie *Schutzrichtlinie Festlegen.*
+
+
+.Ergebnis
+Astra Control implementiert die Datensicherungsrichtlinien, indem Snapshots und Backups mithilfe der von Ihnen definierten Zeitplan und Aufbewahrungsrichtlinie erstellt und aufbewahrt werden.
+
+
+
+== Erstellen Sie einen Snapshot
+
+Sie können jederzeit einen On-Demand-Snapshot erstellen.
+
+.Über diese Aufgabe
+Astra Control unterstützt die Snapshot-Erstellung mithilfe von Storage-Klassen, die von den folgenden Treibern unterstützt werden:
+
+* `ontap-nas`
+* `ontap-san`
+* `ontap-san-economy`
+
+
+
+IMPORTANT: Wenn Ihre App eine von der unterstützte Storage-Klasse verwendet `ontap-nas-economy` Treiber, Snapshots können nicht erstellt werden. Verwenden Sie eine alternative Storage-Klasse für Snapshots.
+
+.Schritte
+. Wählen Sie *Anwendungen*.
+. Wählen Sie im Menü Optionen in der Spalte *Aktionen* für die gewünschte App die Option *Snapshot* aus.
+. Passen Sie den Namen des Snapshots an und wählen Sie dann *Weiter*.
+. Überprüfen Sie die Snapshot-Zusammenfassung und wählen Sie *Snapshot*.
+
+
+.Ergebnis
+Der Snapshot-Prozess beginnt. Ein Snapshot ist erfolgreich, wenn der Status in der Spalte *Zustand* auf der Seite *Datenschutz* > *Snapshots* in der Spalte *Zustand* angegeben ist.
+
+
+
+== Erstellen Sie ein Backup
+
+Sie können eine App jederzeit sichern.
+
+.Über diese Aufgabe
+Buckets in Astra Control berichten nicht über die verfügbare Kapazität. Bevor Sie von Astra Control gemanagte Applikationen sichern oder klonen, überprüfen Sie Bucket-Informationen im entsprechenden Storage-Managementsystem.
+
+Wenn Ihre App eine von der unterstützte Storage-Klasse verwendet `ontap-nas-economy` Fahrer, müssen Sie <<Backup und Restore für den wirtschaftlichen Betrieb von ontap-nas,Aktivieren Sie Backup und Restore>> Funktionalität. Stellen Sie sicher, dass Sie einen definiert haben `backendType` Parameter in im https://docs.netapp.com/us-en/trident/trident-reference/objects.html#kubernetes-storageclass-objects["Kubernetes Storage-Objekt"^] Mit einem Wert von `ontap-nas-economy` Bevor Sie Schutzmaßnahmen durchführen.
+
+[NOTE]
+====
+Astra Control unterstützt die Backup-Erstellung mithilfe von Storage-Klassen, die von den folgenden Treibern unterstützt werden:
+
+* `ontap-nas`
+* `ontap-nas-economy`
+* `ontap-san`
+* `ontap-san-economy`
+
+
+====
+.Schritte
+. Wählen Sie *Anwendungen*.
+. Wählen Sie im Menü Optionen in der Spalte *Aktionen* für die gewünschte App die Option *Sichern* aus.
+. Passen Sie den Namen des Backups an.
+. Wählen Sie aus, ob die Anwendung aus einem vorhandenen Snapshot gesichert werden soll. Wenn Sie diese Option auswählen, können Sie aus einer Liste vorhandener Snapshots auswählen.
+. Wählen Sie aus der Liste der Storage-Buckets einen Ziel-Bucket für das Backup aus.
+. Wählen Sie *Weiter*.
+. Überprüfen Sie die Backup-Zusammenfassung und wählen Sie *Backup*.
+
+
+.Ergebnis
+Astra Control erstellt ein Backup der App.
+
+[NOTE]
+====
+* Wenn Ihr Netzwerk ausfällt oder ungewöhnlich langsam ist, kann es zu einer Zeit für einen Backup-Vorgang kommen. Dies führt zum Fehlschlagen der Datensicherung.
+* Wenn Sie eine laufende Sicherung abbrechen müssen, befolgen Sie die Anweisungen unter <<Abbrechen von Backups>>. Um das Backup zu löschen, warten Sie, bis es abgeschlossen ist, und befolgen Sie die Anweisungen unter <<Backups löschen>>.
+* Nach einer Datensicherungsoperation (Klonen, Backup, Restore) und einer anschließenden Anpassung des persistenten Volumes beträgt die Verzögerung bis zu zwanzig Minuten, bevor die neue Volume-Größe in der UI angezeigt wird. Der Datensicherungsvorgang ist innerhalb von Minuten erfolgreich und Sie können mit der Management Software für das Storage-Backend die Änderung der Volume-Größe bestätigen.
+
+
+====
+
+
+== Backup und Restore für den wirtschaftlichen Betrieb von ontap-nas
+
+Astra Control Provisioner bietet Backup- und Restore-Funktionen für Storage-Back-Ends, die das verwenden `ontap-nas-economy` Storage-Klasse.
+
+.Bevor Sie beginnen
+* Das ist schon link:../use/enable-acp.html["Astra Control Provisioner wurde aktiviert"].
+* Sie haben eine Anwendung in Astra Control definiert. Diese Anwendung verfügt nur über begrenzte Schutzfunktionen, bis Sie diesen Vorgang abgeschlossen haben.
+* Das ist schon `ontap-nas-economy` Ausgewählt als Standard-Storage-Klasse für Ihr Storage-Back-End.
+
+
+.Erweitern Sie für Konfigurationsschritte
+[%collapsible]
+====
+. Gehen Sie auf dem ONTAP Storage Back-End folgendermaßen vor:
++
+.. Finden Sie die SVM, die den hostet `ontap-nas-economy`-Basierte Volumen der Anwendung.
+.. Melden Sie sich bei einem Terminal an, das mit ONTAP verbunden ist, wo die Volumes erstellt werden.
+.. Snapshot-Verzeichnis für SVM ausblenden:
++
+
+NOTE: Diese Änderung wirkt sich auf die gesamte SVM aus. Auf das verborgene Verzeichnis kann weiterhin zugegriffen werden.
+
++
+[source, console]
+----
+nfs modify -vserver <svm name> -v3-hide-snapshot enabled
+----
++
+
+IMPORTANT: Vergewissern Sie sich, dass das Snapshot-Verzeichnis auf dem ONTAP-Speicher-Back-End verborgen ist. Das Ausblenden dieses Verzeichnisses kann zu einem Verlust des Zugriffs auf Ihre Anwendung führen, insbesondere wenn es NFSv3 verwendet.
+
+
+
+. Gehen Sie in Astra Trident wie folgt vor:
++
+.. Aktivieren Sie das Snapshot-Verzeichnis für jedes PV, das ist `ontap-nas-economy` Basiert und mit der Applikation verknüpft:
++
+[source, console]
+----
+tridentctl update volume <pv name> --snapshot-dir=true --pool-level=true -n trident
+----
+.. Vergewissern Sie sich, dass das Snapshot-Verzeichnis für jedes zugeordnete PV aktiviert wurde:
++
+[source, console]
+----
+tridentctl get volume <pv name> -n trident -o yaml | grep snapshotDir
+----
++
+Antwort:
+
++
+[listing]
+----
+snapshotDirectory: "true"
+----
+
+
+. Aktualisieren Sie in Astra Control die Applikation nach Aktivierung aller zugehörigen Snapshot-Verzeichnisse, damit Astra Control den geänderten Wert erkennt.
+
+
+.Ergebnis
+Die Applikation ist bereit für Backups und Restores mit Astra Control. Jede PVC kann auch von anderen Anwendungen für Backups und Wiederherstellungen verwendet werden.
+
+====
+
+
+== Unveränderliches Backup erstellen
+
+Ein unveränderliches Backup kann nicht geändert, gelöscht oder überschrieben werden, solange die Aufbewahrungsrichtlinie auf dem Bucket, der das Backup speichert, dies verbietet. Erstellen Sie unveränderliche Backups, indem Sie Applikationen in Buckets sichern, für die eine Aufbewahrungsrichtlinie konfiguriert ist. Siehe link:../concepts/data-protection.html#immutable-backups["Datensicherung"^] Finden Sie wichtige Informationen zum Arbeiten mit unveränderlichen Backups.
+
+.Bevor Sie beginnen
+Sie müssen den Ziel-Bucket mit einer Aufbewahrungsrichtlinie konfigurieren. Je nachdem, welchen Storage-Anbieter Sie verwenden, hängt die Vorgehensweise davon ab. Weitere Informationen finden Sie in der Dokumentation des Speicheranbieters:
+
+* *Amazon Web Services*: https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lock-console.html["Aktivieren Sie S3 Object Lock beim Erstellen des Buckets und legen Sie den Standardaufbewahrungsmodus „Governance“ mit einer Standardaufbewahrungszeit fest"^].
+* *NetApp StorageGRID*: https://docs.netapp.com/us-en/storagegrid-117/tenant/creating-s3-bucket.html["Aktivieren Sie S3 Object Lock beim Erstellen des Buckets und legen Sie den Standardaufbewahrungsmodus „Compliance“ mit einer Standardaufbewahrungsdauer fest"^].
+
+
+
+NOTE: Buckets in Astra Control berichten nicht über die verfügbare Kapazität. Bevor Sie von Astra Control gemanagte Applikationen sichern oder klonen, überprüfen Sie Bucket-Informationen im entsprechenden Storage-Managementsystem.
+
+
+IMPORTANT: Wenn Ihre App eine von der unterstützte Storage-Klasse verwendet `ontap-nas-economy` Treiber, stellen Sie sicher, dass Sie einen definiert haben `backendType` Parameter in im https://docs.netapp.com/us-en/trident/trident-reference/objects.html#kubernetes-storageclass-objects["Kubernetes Storage-Objekt"^] Mit einem Wert von `ontap-nas-economy` Bevor Sie Schutzmaßnahmen durchführen.
+
+.Schritte
+. Wählen Sie *Anwendungen*.
+. Wählen Sie im Menü Optionen in der Spalte *Aktionen* für die gewünschte App die Option *Sichern* aus.
+. Passen Sie den Namen des Backups an.
+. Wählen Sie aus, ob die Anwendung aus einem vorhandenen Snapshot gesichert werden soll. Wenn Sie diese Option auswählen, können Sie aus einer Liste vorhandener Snapshots auswählen.
+. Wählen Sie aus der Liste der Storage-Buckets einen Ziel-Bucket für das Backup aus. Ein WORM-Bucket (Write Once Read Many) wird neben dem Bucket-Namen mit dem Status „gesperrt“ angezeigt.
++
+
+NOTE: Wenn es sich bei dem Bucket um einen nicht unterstützten Typ handelt, wird dies angezeigt, wenn Sie den Mauszeiger über den Bucket bewegen oder ihn auswählen.
+
+. Wählen Sie *Weiter*.
+. Überprüfen Sie die Backup-Zusammenfassung und wählen Sie *Backup*.
+
+
+.Ergebnis
+Astra Control erstellt eine unveränderliche Sicherung der App.
+
+[NOTE]
+====
+* Wenn Ihr Netzwerk ausfällt oder ungewöhnlich langsam ist, kann es zu einer Zeit für einen Backup-Vorgang kommen. Dies führt zum Fehlschlagen der Datensicherung.
+* Wenn Sie versuchen, zwei unveränderliche Backups derselben App gleichzeitig im selben Bucket zu erstellen, verhindert Astra Control, dass das zweite Backup gestartet wird. Warten Sie, bis die erste Sicherung abgeschlossen ist, bevor Sie eine andere starten.
+* Sie können ein auslaufendes unveränderliches Backup nicht abbrechen.
+* Nach einer Datensicherungsoperation (Klonen, Backup, Restore) und einer anschließenden Anpassung des persistenten Volumes beträgt die Verzögerung bis zu zwanzig Minuten, bevor die neue Volume-Größe in der UI angezeigt wird. Der Datensicherungsvorgang ist innerhalb von Minuten erfolgreich und Sie können mit der Management Software für das Storage-Backend die Änderung der Volume-Größe bestätigen.
+
+
+====
+
+
+== Anzeigen von Snapshots und Backups
+
+Sie können die Snapshots und Backups einer Anwendung auf der Registerkarte Datenschutz anzeigen.
+
+
+NOTE: Ein unveränderliches Backup wird neben dem verwendeten Bucket mit dem Status „gesperrt“ angezeigt.
+
+.Schritte
+. Wählen Sie *Anwendungen* und dann den Namen einer App aus.
+. Wählen Sie *Datenschutz*.
++
+Die Snapshots werden standardmäßig angezeigt.
+
+. Wählen Sie *Backups*, um die Liste der Backups anzuzeigen.
+
+
+
+
+== Snapshots löschen
+
+Löschen Sie die geplanten oder On-Demand Snapshots, die Sie nicht mehr benötigen.
+
+
+NOTE: Sie können keinen Snapshot löschen, der derzeit repliziert wird.
+
+.Schritte
+. Wählen Sie *Anwendungen* und dann den Namen einer verwalteten App aus.
+. Wählen Sie *Datenschutz*.
+. Wählen Sie im Menü Optionen in der Spalte *Aktionen* für den gewünschten Snapshot die Option *Snapshot löschen* aus.
+. Geben Sie das Wort „Löschen“ ein, um das Löschen zu bestätigen und wählen Sie dann *Ja, Snapshot löschen* aus.
+
+
+.Ergebnis
+Astra Control löscht den Snapshot.
+
+
+
+== Abbrechen von Backups
+
+Sie können ein gerade einlaufenden Backup abbrechen.
+
+
+TIP: Um ein Backup abzubrechen, muss sich das Backup befinden `Running` Bundesland. Sie können ein Backup, das sich in befindet, nicht abbrechen `Pending` Bundesland.
+
+
+NOTE: Sie können ein auslaufendes unveränderliches Backup nicht abbrechen.
+
+.Schritte
+. Wählen Sie *Anwendungen* und dann den Namen einer App aus.
+. Wählen Sie *Datenschutz*.
+. Wählen Sie *Backups*.
+. Wählen Sie im Menü Optionen in der Spalte *Aktionen* für das gewünschte Backup die Option *Abbrechen* aus.
+. Geben Sie das Wort „Abbrechen“ ein, um den Vorgang zu bestätigen, und wählen Sie dann *Ja, Sicherung abbrechen* aus.
+
+
+
+
+== Backups löschen
+
+Löschen Sie die geplanten oder On-Demand-Backups, die Sie nicht mehr benötigen. Sie können ein Backup, das an einem unveränderlichen Bucket erstellt wurde, erst dann löschen, wenn dies durch die Aufbewahrungsrichtlinie des Buckets möglich ist.
+
+
+NOTE: Sie können ein unveränderliches Backup nicht vor Ablauf der Aufbewahrungsfrist löschen.
+
+
+NOTE: Wenn Sie eine laufende Sicherung abbrechen müssen, befolgen Sie die Anweisungen unter <<Abbrechen von Backups>>. Um das Backup zu löschen, warten Sie, bis es abgeschlossen ist, und befolgen Sie diese Anweisungen.
+
+.Schritte
+. Wählen Sie *Anwendungen* und dann den Namen einer App aus.
+. Wählen Sie *Datenschutz*.
+. Wählen Sie *Backups*.
+. Wählen Sie im Menü Optionen in der Spalte *Aktionen* für das gewünschte Backup die Option *Backup löschen* aus.
+. Geben Sie das Wort „Löschen“ ein, um das Löschen zu bestätigen und wählen Sie dann *Ja, Sicherung löschen*.
+
+
+.Ergebnis
+Astra Control löscht das Backup.

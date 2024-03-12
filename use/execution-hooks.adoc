@@ -1,0 +1,444 @@
+---
+sidebar: sidebar 
+permalink: use/execution-hooks.html 
+keywords: execution hook, snapshot, hook, kubernetes, astra control, astra 
+summary: Ein Execution Hook ist ein benutzerdefiniertes Skript, das Sie vor oder nach einem Snapshot einer verwalteten App ausführen können. 
+---
+= Anwendungsausführungshaken verwalten
+:hardbreaks:
+:allow-uri-read: 
+:icons: font
+:imagesdir: ../media/use/
+
+
+[role="lead"]
+Ein Execution Hook ist eine benutzerdefinierte Aktion, die Sie so konfigurieren können, dass sie zusammen mit einem Datenschutzvorgang einer verwalteten App ausgeführt wird. Wenn Sie beispielsweise über eine Datenbank-App verfügen, können Sie mit einem Execution-Hook alle Datenbanktransaktionen vor einem Snapshot anhalten und die Transaktionen nach Abschluss des Snapshots wieder aufnehmen. Dies gewährleistet applikationskonsistente Snapshots.
+
+
+
+== Arten von Ausführungshaken
+
+Astra Control Center unterstützt die folgenden Typen von Ausführungshaken, je nachdem, wann sie ausgeführt werden können:
+
+* Vor dem Snapshot
+* Nach dem Snapshot
+* Vor dem Backup
+* Nach dem Backup
+* Nach dem Wiederherstellen
+* Nach Failover
+
+
+
+
+== Filter für Testausführungshaken
+
+Wenn Sie einer Anwendung einen Ausführungshaken hinzufügen oder bearbeiten, können Sie einem Ausführungshaken Filter hinzufügen, um zu verwalten, mit welchen Containern der Hook übereinstimmt. Filter sind für Applikationen nützlich, die in allen Containern dasselbe Container-Image nutzen. Jedes Image kann jedoch für einen anderen Zweck (wie Elasticsearch) verwendet werden. Mit Filtern können Sie Szenarien erstellen, in denen Ausführungshaken auf einigen, aber nicht unbedingt allen identischen Containern ausgeführt werden. Wenn Sie mehrere Filter für einen einzelnen Testausführungshaken erstellen, werden diese mit einem logischen UND einem Operator kombiniert. Pro Testsuite können Sie bis zu 10 aktive Filter haben.
+
+Jeder Filter, den Sie einem Execution Hook hinzufügen, verwendet einen regulären Ausdruck, um Container in Ihrem Cluster zu entsprechen. Wenn ein Haken einem Container entspricht, führt der Haken sein zugehöriges Skript auf diesem Container aus. Reguläre Ausdrücke für Filter verwenden die Syntax des regulären Ausdrucks 2 (RE2), die das Erstellen eines Filters nicht unterstützt, der Container aus der Liste der Übereinstimmungen ausschließt. Informationen zur Syntax, die Astra Control für regelmäßige Ausdrücke in Hook-Filter unterstützt, finden Sie unter https://github.com/google/re2/wiki/Syntax["Syntaxunterstützung für regulären Ausdruck 2 (RE2)"^].
+
+
+NOTE: Wenn Sie einem Ausführungs-Hook einen Namespace-Filter hinzufügen, der nach einer Wiederherstellung oder einem Klonvorgang ausgeführt wird, und die Wiederherstellungs- oder Klonquelle und das Ziel in verschiedenen Namespaces liegen, wird der Namespace-Filter nur auf den Ziel-Namespace angewendet.
+
+
+
+== Wichtige Hinweise zu benutzerdefinierten Testausführungshaken
+
+Bei der Planung von Testausführungshooks für Ihre Apps sollten Sie Folgendes berücksichtigen:
+
+[NOTE]
+====
+Da Testsuitehingel die Funktionalität der Anwendung, für die sie ausgeführt werden, oft reduzieren oder vollständig deaktivieren, sollten Sie immer versuchen, die Zeit zu minimieren, die Ihre benutzerdefinierten Testausführungshaken für die Ausführung benötigt.
+Wenn Sie eine Backup- oder Snapshot-Operation mit zugeordneten Testsuiten starten, diese aber dann abbrechen, können die Haken trotzdem ausgeführt werden, wenn der Backup- oder Snapshot-Vorgang bereits gestartet wurde. Das bedeutet, dass die in einem Testsuite nach dem Backup verwendete Logik nicht davon ausgehen kann, dass das Backup abgeschlossen wurde.
+
+====
+* Die Ausführungshaken-Funktion ist bei neuen Astra Control-Bereitstellungen standardmäßig deaktiviert.
++
+** Sie müssen die Funktion „Ausführungshaken“ aktivieren, bevor Sie Ausführungshaken verwenden können.
+** Benutzer von Eigentümer oder Administrator können die Funktion „Ausführungshaken“ für alle Benutzer aktivieren oder deaktivieren, die im aktuellen Astra Control-Konto definiert sind. Siehe <<Aktivieren Sie die Funktion „Ausführungshaken“>> Und <<Deaktivieren Sie die Funktion Ausführungshaken>> Weitere Anweisungen.
+** Der Status der Funktionsunterstützung bleibt bei Astra Control Upgrades erhalten.
+
+
+* Ein Testsuite muss ein Skript verwenden, um Aktionen durchzuführen. Viele Testsuitehaoks können auf dasselbe Skript verweisen.
+* Astra Control erfordert, dass die Skripte, mit denen Ausführungshaken ausgeführt werden, im Format ausführbarer Shell-Skripte geschrieben werden.
+* Die Skriptgröße ist auf 96 KB begrenzt.
+* Astra Control verwendet Hook-Einstellungen für die Ausführung und alle übereinstimmenden Kriterien, um festzustellen, welche Haken für einen Snapshot-, Backup- oder Wiederherstellungsvorgang gelten.
+* Alle Fehler bei den Testausführungshaken sind weiche Ausfälle, andere Haken und der Datenschutzvorgang werden immer noch versucht, auch wenn ein Haken ausfällt. Wenn ein Haken jedoch ausfällt, wird ein Warnereignis im Ereignisprotokoll der Seite * aufgezeichnet.
+* Um Testsuiten zu erstellen, zu bearbeiten oder zu löschen, müssen Sie Benutzer mit den Berechtigungen Eigentümer, Administrator oder Mitglied sein.
+* Wenn ein Execution Hook länger als 25 Minuten dauert, schlägt der Hook fehl und erstellt einen Ereignisprotokolleintrag mit einem Rückgabecode von „N/A“. Jeder betroffene Snapshot wird als fehlgeschlagen markiert, und ein resultierender Eintrag im Ereignisprotokoll weist auf das Timeout hin.
+* Für Ad-hoc-Datenschutzvorgänge werden alle Hook-Ereignisse generiert und im Ereignisprotokoll der Seite *Aktivität* gespeichert. Bei geplanten Datenschutzvorgängen werden jedoch nur Hook-Failure-Ereignisse im Ereignisprotokoll aufgezeichnet (Ereignisse, die von den geplanten Datenschutzvorgängen selbst generiert werden, werden noch aufgezeichnet).
+* Wenn Astra Control Center einen Failover über eine replizierte Quell-App an die Ziel-App ausführt, werden nach dem Failover alle für die Quell-App aktivierten Ausführungs-Hooks für die Ziel-App ausgeführt.
++
+
+NOTE: Wenn Sie nach der Wiederherstellung Hooks mit Astra Control Center 23.04 ausgeführt und Ihr Astra Control Center auf 23.07 oder höher aktualisiert haben, werden die Hooks für die Ausführung nach der Wiederherstellung nach einer Failover-Replizierung nicht mehr ausgeführt. Sie müssen neue Ausführungshaken nach dem Failover für Ihre Apps erstellen. Alternativ können Sie den Operationstyp vorhandener Hooks nach der Wiederherstellung ändern, die für Failover von „nach der Wiederherstellung“ zu „nach dem Failover“ gedacht sind.
+
+
+
+
+
+=== Ausführungsreihenfolge
+
+Wenn ein Datenschutzvorgang ausgeführt wird, finden Hakenereignisse in der folgenden Reihenfolge statt:
+
+. Alle entsprechenden benutzerdefinierten Testhaken für die Ausführung vor dem Betrieb werden auf den entsprechenden Containern ausgeführt. Sie können beliebig viele benutzerdefinierte Hooks für die Vorbedienung erstellen und ausführen, aber die Reihenfolge der Ausführung dieser Haken vor der Operation ist weder garantiert noch konfigurierbar.
+. Der Vorgang der Datensicherung wird durchgeführt.
+. Alle entsprechenden benutzerdefinierten Testhaken für die Ausführung nach der Operation werden auf den entsprechenden Containern ausgeführt. Sie können beliebig viele benutzerdefinierte Haken für die Nachbearbeitung erstellen und ausführen, aber die Reihenfolge der Ausführung dieser Haken nach der Operation ist weder garantiert noch konfigurierbar.
+
+
+Wenn Sie mehrere Testausführungshaken desselben Typs erstellen (z. B. Pre-Snapshot), ist die Reihenfolge der Ausführung dieser Haken nicht garantiert. Die Reihenfolge der Ausführung von Haken unterschiedlicher Art ist jedoch garantiert. Die Reihenfolge der Ausführung einer Konfiguration mit allen verschiedenen Hooks sieht beispielsweise folgendermaßen aus:
+
+. Hooks vor dem Backup wurden ausgeführt
+. Hooks vor dem Snapshot wurden ausgeführt
+. Hooks nach dem Snapshot wurden ausgeführt
+. Hooks nach dem Backup ausgeführt
+. Haken nach der Wiederherstellung ausgeführt
+
+
+Ein Beispiel für diese Konfiguration finden Sie in Szenario 2 aus der Tabelle in <<Bestimmen Sie, ob ein Haken läuft>>.
+
+
+NOTE: Sie sollten Ihre Hook-Skripte immer testen, bevor Sie sie in einer Produktionsumgebung aktivieren. Mit dem Befehl 'kubectl exec' können Sie die Skripte bequem testen. Nachdem Sie die Testausführungshaken in einer Produktionsumgebung aktiviert haben, testen Sie die erstellten Snapshots und Backups, um sicherzustellen, dass sie konsistent sind. Dazu klonen Sie die Applikation in einem temporären Namespace, stellen den Snapshot oder das Backup wieder her und testen anschließend die App.
+
+
+
+=== Bestimmen Sie, ob ein Haken läuft
+
+Verwenden Sie die folgende Tabelle, um zu ermitteln, ob ein benutzerdefinierter Testsuite für Ihre Anwendung ausgeführt wird.
+
+Alle grundlegenden Applikationsvorgänge müssen eine der grundlegenden Vorgänge – Snapshot, Backup oder Wiederherstellung – ausgeführt werden. Je nach Szenario kann ein Klonvorgang aus verschiedenen Kombinationen dieser Operationen bestehen, sodass die Ausführungsooks für einen Klonvorgang variieren.
+
+Für Wiederherstellungen ohne Backup ist ein vorhandener Snapshot oder Backup erforderlich, sodass bei diesen Vorgängen keine Snapshot- oder Backup-Hooks ausgeführt werden.
+
+[NOTE]
+====
+Wenn Sie starten, aber dann brechen Sie ein Backup, das einen Snapshot enthält und es sind zugewiesene Testausführungshaken, einige Haken laufen, und andere möglicherweise nicht. Das bedeutet, dass ein Testinaper nach dem Backup nicht davon ausgehen kann, dass die Sicherung abgeschlossen wurde. Beachten Sie die folgenden Punkte für abgebrochene Backups mit zugehörigen Testsuiten:
+
+* Die Hooks vor dem Backup und nach dem Backup laufen immer.
+* Wenn das Backup einen neuen Snapshot enthält und der Snapshot gestartet wurde, werden die Hooks vor dem Snapshot und nach dem Snapshot ausgeführt.
+* Wenn die Sicherung vor dem Start des Snapshots abgebrochen wird, werden die Hooks vor dem Snapshot und nach dem Snapshot nicht ausgeführt.
+
+
+====
+|===
+| Szenario | Betrieb | Vorhandener Snapshot | Vorhandenes Backup | Namespace | Cluster | Snapshot Hooks laufen | Backup Hooks laufen | Hooks Run wiederherstellen | Failover Hooks werden ausgeführt 
+
+
+| 1 | Klon | N | N | Neu | Gleich | Y | N | Y | N 
+
+
+| 2 | Klon | N | N | Neu | Anders | Y | Y | Y | N 
+
+
+| 3 | Klonen oder Wiederherstellen | Y | N | Neu | Gleich | N | N | Y | N 
+
+
+| 4 | Klonen oder Wiederherstellen | N | Y | Neu | Gleich | N | N | Y | N 
+
+
+| 5 | Klonen oder Wiederherstellen | Y | N | Neu | Anders | N | N | Y | N 
+
+
+| 6 | Klonen oder Wiederherstellen | N | Y | Neu | Anders | N | N | Y | N 
+
+
+| 7 | Wiederherstellen | Y | N | Vorhanden | Gleich | N | N | Y | N 
+
+
+| 8 | Wiederherstellen | N | Y | Vorhanden | Gleich | N | N | Y | N 
+
+
+| 9 | Snapshot | K. A. | K. A. | K. A. | K. A. | Y | K. A. | K. A. | N 
+
+
+| 10 | Backup | N | K. A. | K. A. | K. A. | Y | Y | K. A. | N 
+
+
+| 11 | Backup | Y | K. A. | K. A. | K. A. | N | N | K. A. | N 
+
+
+| 12 | Failover | Y | K. A. | Durch Replikation erstellt | Anders | N | N | N | Y 
+
+
+| 13 | Failover | Y | K. A. | Durch Replikation erstellt | Gleich | N | N | N | Y 
+|===
+
+
+== Beispiele für Testausführungshaken
+
+Besuchen Sie das https://github.com/NetApp/Verda["NetApp Verda GitHub Projekt"] Zum Herunterladen von Real-Execution-Hooks für beliebte Apps wie Apache Cassandra und Elasticsearch. Sie können auch Beispiele sehen und Ideen für die Strukturierung Ihrer eigenen benutzerdefinierten Execution Hooks erhalten.
+
+
+
+== Aktivieren Sie die Funktion „Ausführungshaken“
+
+Wenn Sie Eigentümer oder Admin-Benutzer sind, können Sie die Funktion Ausführungshaken aktivieren. Wenn Sie die Funktion aktivieren, können alle in diesem Astra Control-Konto definierten Benutzer Ausführungshaken verwenden und vorhandene Ausführungshaken und Hook-Skripte anzeigen.
+
+.Schritte
+. Gehen Sie zu *Anwendungen* und wählen Sie dann den Namen einer verwalteten App aus.
+. Wählen Sie die Registerkarte *Testsuitehaschen* aus.
+. Wählen Sie *Ausführungshaken aktivieren*.
++
+Die Registerkarte *Account* > *feature settings* wird angezeigt.
+
+. Wählen Sie im Bereich *Ausführungshaken* das Einstellungsmenü aus.
+. Wählen Sie *Enable*.
+. Beachten Sie die Sicherheitswarnung, die angezeigt wird.
+. Wählen Sie *Ja, Ausführungshaken aktivieren*.
+
+
+
+
+== Deaktivieren Sie die Funktion Ausführungshaken
+
+Wenn Sie ein Benutzer von Eigentümer oder Administrator sind, können Sie die Funktion „Ausführungshaken“ für alle Benutzer deaktivieren, die in diesem Astra Control-Konto definiert sind. Sie müssen alle vorhandenen Ausführungshaken löschen, bevor Sie die Funktion „Ausführungshaken“ deaktivieren können. Siehe <<Löschen Sie einen Testsuite-Haken>> Für Anweisungen zum Löschen einer vorhandenen Ausführungsöse.
+
+.Schritte
+. Gehen Sie zu *Account* und wählen Sie dann die Registerkarte *Feature settings*.
+. Wählen Sie die Registerkarte *Testsuitehaschen* aus.
+. Wählen Sie im Bereich *Ausführungshaken* das Einstellungsmenü aus.
+. Wählen Sie *Deaktivieren*.
+. Beachten Sie die Warnmeldung, die angezeigt wird.
+. Typ `disable` Um zu bestätigen, dass Sie die Funktion für alle Benutzer deaktivieren möchten.
+. Wählen Sie *Ja, deaktivieren*.
+
+
+
+
+== Vorhandene Testsuiten anzeigen
+
+Sie können vorhandene benutzerdefinierte Testsuiten für eine App anzeigen.
+
+.Schritte
+. Gehen Sie zu *Anwendungen* und wählen Sie dann den Namen einer verwalteten App aus.
+. Wählen Sie die Registerkarte *Testsuitehaschen* aus.
++
+In der Ergebnisliste können Sie alle aktivierten oder deaktivierten Testausführungshaken anzeigen. Sie sehen den Status eines Hakens, die Anzahl der passenden Container, die Erstellungszeit und den Ablauf (vor- oder Nachbetrieb). Sie können die auswählen `+` Symbol neben dem Hook-Namen, um die Liste der Container, auf denen es ausgeführt wird, zu erweitern. Um die Ereignisprotokolle zu den Testausführungshaken für diese Anwendung anzuzeigen, gehen Sie zur Registerkarte *Aktivität*.
+
+
+
+
+
+== Vorhandene Skripte anzeigen
+
+Sie können die bereits hochgeladenen Skripte anzeigen. Auf dieser Seite können Sie auch sehen, welche Skripte verwendet werden und welche Haken sie verwenden.
+
+.Schritte
+. Gehen Sie zu *Konto*.
+. Wählen Sie die Registerkarte *Skripts* aus.
++
+Auf dieser Seite sehen Sie eine Liste mit bereits hochgeladenen Skripten. Die Spalte *used by* zeigt an, welche Testsuitehaoks die einzelnen Skripte verwenden.
+
+
+
+
+
+== Fügen Sie ein Skript hinzu
+
+Jeder Execution Hook muss ein Skript verwenden, um Aktionen durchzuführen. Sie können einen oder mehrere Skripte hinzufügen, auf die Testausführungshaken verweisen können. Viele Ausführungshaken können auf dasselbe Skript verweisen. Dadurch können Sie viele Ausführungshaken aktualisieren, indem Sie nur ein Skript ändern.
+
+.Schritte
+. Stellen Sie sicher, dass die Funktion Ausführungshaken aktiviert ist <<Aktivieren Sie die Funktion „Ausführungshaken“,Aktiviert>>.
+. Gehen Sie zu *Konto*.
+. Wählen Sie die Registerkarte *Skripts* aus.
+. Wählen Sie *Hinzufügen*.
+. Führen Sie einen der folgenden Schritte aus:
++
+** Laden Sie ein benutzerdefiniertes Skript hoch.
++
+... Wählen Sie die Option *Datei hochladen*.
+... Navigieren Sie zu einer Datei, und laden Sie sie hoch.
+... Geben Sie dem Skript einen eindeutigen Namen.
+... (Optional) Geben Sie alle Notizen ein, die andere Administratoren über das Skript wissen sollten.
+... Wählen Sie *Skript speichern*.
+
+
+** Fügen Sie in ein benutzerdefiniertes Skript aus der Zwischenablage ein.
++
+... Wählen Sie die Option *Einfügen oder Typ* aus.
+... Wählen Sie das Textfeld aus, und fügen Sie den Skripttext in das Feld ein.
+... Geben Sie dem Skript einen eindeutigen Namen.
+... (Optional) Geben Sie alle Notizen ein, die andere Administratoren über das Skript wissen sollten.
+
+
+
+
+. Wählen Sie *Skript speichern*.
+
+
+.Ergebnis
+Das neue Skript erscheint in der Liste auf der Registerkarte *Scripts*.
+
+
+
+== Ein Skript löschen
+
+Sie können ein Skript aus dem System entfernen, wenn es nicht mehr benötigt wird und nicht von Testsuiten verwendet wird.
+
+.Schritte
+. Gehen Sie zu *Konto*.
+. Wählen Sie die Registerkarte *Skripts* aus.
+. Wählen Sie ein Skript aus, das Sie entfernen möchten, und wählen Sie das Menü in der Spalte *Aktionen* aus.
+. Wählen Sie *Löschen*.
+
+
+
+NOTE: Wenn das Skript mit einem oder mehreren Testsuiten verknüpft ist, ist die Aktion *Löschen* nicht verfügbar. Um das Skript zu löschen, bearbeiten Sie zunächst die zugehörigen Testausführungshaken und ordnen Sie sie einem anderen Skript zu.
+
+
+
+== Erstellen Sie einen benutzerdefinierten Testsuite-Haken
+
+Sie können einen benutzerdefinierten Ausführungshaken für eine App erstellen und ihn zu Astra Control hinzufügen. Siehe <<Beispiele für Testausführungshaken>> Beispiele für Haken. Sie müssen über die Berechtigungen Eigentümer, Administrator oder Mitglied verfügen, um Testausführungshaken zu erstellen.
+
+
+NOTE: Wenn Sie ein benutzerdefiniertes Shell-Skript erstellen, das als Execution Hook verwendet werden soll, denken Sie daran, die entsprechende Shell am Anfang der Datei anzugeben, es sei denn, Sie führen bestimmte Befehle aus oder geben den vollständigen Pfad zu einer ausführbaren Datei an.
+
+.Schritte
+. Stellen Sie sicher, dass die Funktion Ausführungshaken aktiviert ist <<Aktivieren Sie die Funktion „Ausführungshaken“,Aktiviert>>.
+. Wählen Sie *Anwendungen* und dann den Namen einer verwalteten App aus.
+. Wählen Sie die Registerkarte *Testsuitehaschen* aus.
+. Wählen Sie *Hinzufügen*.
+. Im Bereich *Klettdetails*:
++
+.. Bestimmen Sie, wann der Haken ausgeführt werden soll, indem Sie im Dropdown-Menü * Operation* einen Operationstyp auswählen.
+.. Geben Sie einen eindeutigen Namen für den Haken ein.
+.. (Optional) Geben Sie alle Argumente ein, um während der Ausführung an den Haken weiterzuleiten. Drücken Sie nach jedem eingegebenen Argument die Eingabetaste, um jedes Argument aufzuzeichnen.
+
+
+. (Optional) im Bereich *Hook Filter Details* können Sie Filter hinzufügen, um zu steuern, auf welchen Behältern der Execution Hook läuft:
++
+.. Wählen Sie *Filter hinzufügen*.
+.. Wählen Sie in der Spalte *Hook Filtertyp* ein Attribut aus, nach dem Sie im Dropdown-Menü filtern möchten.
+.. Geben Sie in der Spalte *Regex* einen regulären Ausdruck ein, der als Filter verwendet werden soll. Astra Control verwendet den https://github.com/google/re2/wiki/Syntax["Regex-Syntax für regulären Ausdruck 2 (RE2)"^].
++
+
+NOTE: Wenn Sie nach dem genauen Namen eines Attributs (z. B. einem Pod-Namen) filtern, ohne dass im Feld Regulärer Ausdruck ein anderer Text enthalten ist, wird eine Substring-Übereinstimmung durchgeführt. Verwenden Sie zum Abgleich eines genauen Namens und nur des Namens die exakte Syntax für die Übereinstimmung der Zeichenfolge (z. B. `^exact_podname$`).
+
+.. Um weitere Filter hinzuzufügen, wählen Sie *Filter hinzufügen*.
++
+
+NOTE: Mehrere Filter für einen Execution Hook werden mit einem logischen UND einem Operator kombiniert. Pro Testsuite können Sie bis zu 10 aktive Filter haben.
+
+
+
+. Wählen Sie anschließend *Weiter* aus.
+. Führen Sie im Bereich *Script* einen der folgenden Schritte aus:
++
+** Fügen Sie ein neues Skript hinzu.
++
+... Wählen Sie *Hinzufügen*.
+... Führen Sie einen der folgenden Schritte aus:
++
+**** Laden Sie ein benutzerdefiniertes Skript hoch.
++
+..... Wählen Sie die Option *Datei hochladen*.
+..... Navigieren Sie zu einer Datei, und laden Sie sie hoch.
+..... Geben Sie dem Skript einen eindeutigen Namen.
+..... (Optional) Geben Sie alle Notizen ein, die andere Administratoren über das Skript wissen sollten.
+..... Wählen Sie *Skript speichern*.
+
+
+**** Fügen Sie in ein benutzerdefiniertes Skript aus der Zwischenablage ein.
++
+..... Wählen Sie die Option *Einfügen oder Typ* aus.
+..... Wählen Sie das Textfeld aus, und fügen Sie den Skripttext in das Feld ein.
+..... Geben Sie dem Skript einen eindeutigen Namen.
+..... (Optional) Geben Sie alle Notizen ein, die andere Administratoren über das Skript wissen sollten.
+
+
+
+
+
+
+** Wählen Sie ein vorhandenes Skript aus der Liste aus.
++
+Hiermit wird der Testsuitelink angewiesen, dieses Skript zu verwenden.
+
+
+
+. Wählen Sie *Weiter*.
+. Überprüfen Sie die Konfiguration der Testsuite.
+. Wählen Sie *Hinzufügen*.
+
+
+
+
+== Überprüfen Sie den Status eines Testablaufanhängees
+
+Nachdem ein Snapshot-, Backup- oder Wiederherstellungsvorgang abgeschlossen wurde, können Sie den Status der Testsuiten überprüfen, die im Rahmen des Vorgangs ausgeführt wurden. Mit diesen Statusinformationen können Sie festlegen, ob der Testsuite beibehalten, geändert oder gelöscht werden soll.
+
+.Schritte
+. Wählen Sie *Anwendungen* und dann den Namen einer verwalteten App aus.
+. Wählen Sie die Registerkarte *Datenschutz* aus.
+. Wählen Sie *Snapshots* aus, um die laufenden Snapshots zu sehen, oder *Backups*, um die laufenden Backups zu sehen.
++
+Der *Hook-Status* zeigt den Status der Ausführung Hakenlauf nach Abschluss des Vorgangs an. Sie können den Mauszeiger auf den Status bewegen, um weitere Details zu erhalten. Wenn z. B. beim Snapshot Fehler beim Ausführen von Hakenabfällen auftreten, wird beim Mauszeiger über den Hakenzustand für diesen Snapshot eine Liste mit fehlgeschlagenen Testsuitelhaken angezeigt. Um die Gründe für jeden Fehler zu sehen, können Sie die Seite *Aktivität* im linken Navigationsbereich überprüfen.
+
+
+
+
+
+== Skriptverwendung anzeigen
+
+In der Web-Benutzeroberfläche von Astra Control können Sie sehen, welche Testausführungshaken ein bestimmtes Skript verwenden.
+
+.Schritte
+. Wählen Sie *Konto*.
+. Wählen Sie die Registerkarte *Skripts* aus.
++
+Die Spalte *used by* in der Liste der Skripte enthält Details darüber, welche Haken die einzelnen Skripte in der Liste verwenden.
+
+. Wählen Sie die Informationen in der Spalte *used by* für ein Skript aus, das Sie interessieren.
++
+Eine detailliertere Liste mit den Namen der Haken, die das Skript verwenden, und der Art der Operation, mit der sie konfiguriert sind.
+
+
+
+
+
+== Bearbeiten Sie einen Testsuite-Haken
+
+Sie können einen Testsuite-Haken bearbeiten, wenn Sie die Attribute, Filter oder das verwendete Skript ändern möchten. Sie müssen über die Berechtigungen Eigentümer, Administrator oder Mitglied verfügen, um Testausführungshaken bearbeiten zu können.
+
+.Schritte
+. Wählen Sie *Anwendungen* und dann den Namen einer verwalteten App aus.
+. Wählen Sie die Registerkarte *Testsuitehaschen* aus.
+. Wählen Sie in der Spalte *Aktionen* das Menü Optionen für einen Haken, den Sie bearbeiten möchten.
+. Wählen Sie *Bearbeiten*.
+. Nehmen Sie alle erforderlichen Änderungen vor, und wählen Sie nach Abschluss jedes Abschnitts *Weiter* aus.
+. Wählen Sie *Speichern*.
+
+
+
+
+== Deaktivieren Sie einen Testsuite-Haken
+
+Sie können einen Testsuite-Hook deaktivieren, wenn Sie ihn vorübergehend vor oder nach einem Snapshot einer App nicht ausführen möchten. Sie müssen über die Berechtigung Eigentümer, Administrator oder Mitglied verfügen, um Testsuiten zu deaktivieren.
+
+.Schritte
+. Wählen Sie *Anwendungen* und dann den Namen einer verwalteten App aus.
+. Wählen Sie die Registerkarte *Testsuitehaschen* aus.
+. Wählen Sie in der Spalte *Aktionen* das Menü Optionen für einen Haken, den Sie deaktivieren möchten.
+. Wählen Sie *Deaktivieren*.
+
+
+
+
+== Löschen Sie einen Testsuite-Haken
+
+Sie können einen Execution Hook ganz entfernen, wenn Sie ihn nicht mehr benötigen. Sie müssen über die Berechtigung Eigentümer, Administrator oder Mitglied verfügen, um Testausführungshaken zu löschen.
+
+.Schritte
+. Wählen Sie *Anwendungen* und dann den Namen einer verwalteten App aus.
+. Wählen Sie die Registerkarte *Testsuitehaschen* aus.
+. Wählen Sie in der Spalte *Aktionen* das Menü Optionen für einen Haken, den Sie löschen möchten.
+. Wählen Sie *Löschen*.
+. Geben Sie im Dialogfeld „Ergebnis“ zur Bestätigung „Löschen“ ein.
+. Wählen Sie *Ja, Testsuite löschen*.
+
+
+
+
+== Finden Sie weitere Informationen
+
+* https://github.com/NetApp/Verda["NetApp Verda GitHub Projekt"]
+

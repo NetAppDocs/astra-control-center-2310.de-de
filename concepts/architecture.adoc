@@ -1,0 +1,67 @@
+---
+sidebar: sidebar 
+permalink: concepts/architecture.html 
+keywords: what is astra, astra control, astra control architecture, astra control center, astra control service, kubernetes, netapp, clusters, astra trident 
+summary: Hier ist ein Überblick über die verschiedenen Komponenten der Astra Control-Umgebung. 
+---
+= Architektur und Komponenten
+:hardbreaks:
+:allow-uri-read: 
+:icons: font
+:imagesdir: ../media/concepts/
+
+
+[role="lead"]
+Hier ist ein Überblick über die verschiedenen Komponenten der Astra Control-Umgebung.
+
+image:astra-architecture-diagram-v5.png["Ein konzeptuelles Bild, das die Astra Control-Architektur und ihre Komponenten beschreibt"]
+
+
+
+== Komponenten des Astra Control
+
+* *Kubernetes-Cluster*: Kubernetes ist eine portable, erweiterbare Open-Source-Plattform für das Management von Workloads und Services in Containern, die sowohl deklarative Konfigurationen als auch Automatisierung ermöglicht. Astra bietet Managementservices für Applikationen, die in einem Kubernetes-Cluster gehostet werden.
+* *Astra Trident*: Als vollständig unterstützte Open-Source-Storage-bereitstellung und -Orchestrierung mit NetApp ermöglicht Ihnen Astra Trident die Erstellung von Storage Volumes für Container-Applikationen, die von Docker und Kubernetes verwaltet werden. Astra Trident ist mit dem Astra Control Center implementiert und umfasst ein konfiguriertes ONTAP Storage-Back-End.
+* *Speicher-Backend*:
++
+** Astra Control Service nutzt folgende Storage-Back-Ends:
++
+*** https://www.netapp.com/cloud-services/cloud-volumes-service-for-google-cloud/["NetApp Cloud Volumes Service für Google Cloud"^] Oder Google Persistent Disk als Speicher-Backend für GKE-Cluster
+*** https://www.netapp.com/cloud-services/azure-netapp-files/["Azure NetApp Dateien"^] Oder von Azure verwaltete Festplatten als Storage-Backend für AKS-Cluster.
+*** https://docs.aws.amazon.com/ebs/["Amazon Elastic Block Store (EBS)"^] Oder https://docs.aws.amazon.com/fsx/["Amazon FSX für NetApp ONTAP"^] Als Back-End-Speicheroptionen für EKS-Cluster.
+
+
+** Astra Control Center nutzt folgende Storage-Back-Ends:
++
+*** ONTAP AFF, FAS und ASA. Als Storage-Software- und Hardware-Plattform bietet ONTAP wichtige Storage-Services, Unterstützung für mehrere Storage-Zugriffsprotokolle und Storage-Managementfunktionen wie Snapshots und Spiegelung.
+*** Cloud Volumes ONTAP
+
+
+
+
+* *Cloud Insights*: Mit Cloud Insights, einem Monitoring-Tool für die Cloud-Infrastruktur von NetApp, können Sie die Performance und Auslastung für Ihre Kubernetes-Cluster überwachen, die vom Astra Control Center gemanagt werden. Cloud Insights korreliert die Storage-Auslastung mit Workloads. Wenn Sie die Cloud Insights-Verbindung im Astra Control Center aktivieren, werden Telemetriedaten auf den UI-Seiten des Astra Control Center angezeigt.
+
+
+
+
+== Astra Control-Schnittstellen
+
+Sie können Aufgaben über verschiedene Schnittstellen ausführen:
+
+* *Web-Benutzeroberfläche (UI)*: Sowohl Astra Control Service als auch Astra Control Center nutzen die gleiche webbasierte Benutzeroberfläche, in der Sie Apps verwalten, migrieren und schützen können. Verwenden Sie die UI auch zum Verwalten von Benutzerkonten und Konfigurationseinstellungen.
+* *API*: Sowohl Astra Control Service als auch Astra Control Center nutzen die gleiche Astra Control API. Mit der API können Sie die gleichen Aufgaben ausführen, die Sie über die UI ausgeführt haben.
+
+
+Mit Astra Control Center können Sie auch Kubernetes Cluster in VM-Umgebungen managen, migrieren und schützen.
+
+
+
+== Finden Sie weitere Informationen
+
+* https://docs.netapp.com/us-en/astra/index.html["Dokumentation des Astra Control Service"^]
+* https://docs.netapp.com/us-en/astra-control-center/index.html["Astra Control Center-Dokumentation"^]
+* https://docs.netapp.com/us-en/trident/index.html["Astra Trident-Dokumentation"^]
+* https://docs.netapp.com/us-en/astra-automation["Verwenden Sie die Astra Control API"^]
+* https://docs.netapp.com/us-en/cloudinsights/["Cloud Insights-Dokumentation"^]
+* https://docs.netapp.com/us-en/ontap/index.html["ONTAP-Dokumentation"^]
+

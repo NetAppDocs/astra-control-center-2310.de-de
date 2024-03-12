@@ -1,0 +1,92 @@
+---
+sidebar: sidebar 
+permalink: concepts/data-protection.html 
+keywords: backup, back up, backup apps, back up apps, snapshots, snapshot an app, take a snapshot, take a backup, view backups, view snapshots, set policy, set schedule, schedule backups, schedule snapshots 
+summary: Lernen Sie die verfügbaren Datensicherungsarten im Astra Control Center kennen und erfahren Sie, wie Sie diese am besten für den Schutz Ihrer Applikationen nutzen. 
+---
+= Datensicherung
+:hardbreaks:
+:allow-uri-read: 
+:icons: font
+:imagesdir: ../media/concepts/
+
+
+[role="lead"]
+Lernen Sie die verfügbaren Datensicherungsarten im Astra Control Center kennen und erfahren Sie, wie Sie diese am besten für den Schutz Ihrer Applikationen nutzen.
+
+
+
+== Snapshots, Backups und Sicherungsrichtlinien
+
+Sowohl Snapshots als auch Backups sichern die folgenden Datentypen:
+
+* Der Applikation selbst.
+* Alle persistenten Daten-Volumes, die mit der Applikation in Verbindung stehen
+* Alle zu der Applikation gehörenden Ressourcenartefakte
+
+
+A _Snapshot_ ist eine zeitpunktgenaue Kopie einer Applikation, die auf demselben bereitgestellten Volume wie die Applikation gespeichert ist. In der Regel sind sie schnell. Sie können lokale Snapshots verwenden, um die Anwendung auf einen früheren Zeitpunkt wiederherzustellen. Snapshots sind nützlich für schnelle Klone. Snapshots enthalten alle Kubernetes-Objekte für die App, einschließlich Konfigurationsdateien. Snapshots sind nützlich zum Klonen oder Wiederherstellen einer Anwendung innerhalb desselben Clusters.
+
+Ein _Backup_ basiert auf einem Snapshot. Er wird im externen Objektspeicher gespeichert und kann daher im Vergleich zu lokalen Snapshots langsamer erstellt werden. Sie können ein Applikations-Backup in demselben Cluster wiederherstellen oder eine Applikation migrieren, indem Sie dessen Backup auf ein anderes Cluster wiederherstellen. Sie können auch eine längere Aufbewahrungsdauer für Backups wählen. Da diese im externen Objektspeicher gespeichert werden, bieten Backups in der Regel besseren Schutz als Snapshots bei Serverausfällen oder Datenverlusten.
+
+Eine _Schutzrichtlinie_ ist eine Möglichkeit zum Schutz einer App, indem automatisch Snapshots, Backups oder beides gemäß einem von Ihnen für die App definierten Zeitplan erstellt werden. Eine Sicherungsrichtlinie erlaubt Ihnen außerdem festzulegen, wie viele Snapshots und Backups im Zeitplan aufbewahrt werden sollen, und verschiedene granulare Zeitplanebenen festzulegen. Die Automatisierung von Backups und Snapshots mit einer Sicherungsrichtlinie ist die beste Methode, um sicherzustellen, dass jede Applikation gemäß den Anforderungen Ihres Unternehmens und der SLA-Anforderungen (Service Level Agreement) geschützt ist.
+
+
+CAUTION: _Sie können erst dann vollständig geschützt sein, wenn Sie ein kürzlich gesichertes Backup haben. Das ist wichtig, da Backups abseits der persistenten Volumes in einem Objektspeicher gespeichert werden. Wenn ein Ausfall das Cluster und der damit verbundene persistente Storage entfernt, muss ein Backup wiederhergestellt werden. Ein Snapshot würde es Ihnen nicht ermöglichen, eine Wiederherstellung durchzuführen.
+
+
+
+=== Unveränderliche Backups
+
+Ein unveränderliches Backup ist ein Backup, das innerhalb eines festgelegten Zeitraums nicht geändert oder gelöscht werden kann. Beim Erstellen eines unveränderlichen Backups überprüft Astra Control, ob es sich bei dem verwendeten Bucket um einen WORM-Bucket (Write Once Read Many) handelt. Falls ja, stellt er sicher, dass das Backup in Astra Control unveränderlich ist.
+Astra Control Center unterstützt das Erstellen unveränderlicher Backups mit den folgenden Plattformen und Bucket-Typen:
+
+* Amazon Web Services verwenden einen Amazon S3 Bucket mit konfigurierter S3 Object Lock
+* NetApp StorageGRID mithilfe eines S3 Buckets mit konfigurierter S3 Object Lock-Funktion
+
+
+Beachten Sie beim Arbeiten mit unveränderlichen Backups Folgendes:
+
+* Wenn ein Backup auf einem WORM-Bucket in einer nicht unterstützten Plattform oder auf einem nicht unterstützten Bucket-Typ durchgeführt wird, können unvorhersehbare Ergebnisse wie das Löschen von Backups sogar dann angezeigt werden, wenn die Aufbewahrungszeit abgelaufen ist.
+* Astra Control unterstützt keine Management-Richtlinien für den Daten-Lebenszyklus oder das manuelle Löschen von Objekten in den Buckets, die Sie mit unveränderlichen Backups verwenden. Stellen Sie sicher, dass Ihr Storage-Backend nicht für das Management des Lebenszyklus von Astra Control Snapshots oder gesicherten Daten konfiguriert ist.
+
+
+
+
+== Klone
+
+Ein _Clone_ ist ein exaktes Duplikat einer App, ihrer Konfiguration und ihrer persistenten Daten-Volumes. Sie können einen Klon entweder manuell auf demselben Kubernetes-Cluster oder auf einem anderen Cluster erstellen. Das Klonen einer Applikation kann nützlich sein, wenn Sie Applikationen und Storage von einem Kubernetes Cluster zu einem anderen verschieben müssen.
+
+
+
+== Replizierung zwischen Storage-Back-Ends
+
+Mithilfe von Astra Control können Sie mit den asynchronen Replizierungsfunktionen der NetApp SnapMirror Technologie Business Continuity für Ihre Applikationen erzielen: Mit Low-RPO (Recovery Point Objective) und Low-RTO (Recovery Time Objective). Nach der Konfiguration können Ihre Applikationen auf diese Weise Daten und Applikationsänderungen von einem Storage-Back-End auf ein anderes replizieren, sowohl im selben Cluster als auch zwischen verschiedenen Clustern.
+
+Sie können zwischen zwei ONTAP SVMs auf demselben ONTAP Cluster oder in verschiedenen ONTAP Clustern replizieren.
+
+Astra Control repliziert App-Snapshot-Kopien asynchron an ein Ziel-Cluster. Der Replizierungsprozess umfasst Daten in den persistenten Volumes, die von SnapMirror repliziert werden, und die durch Astra Control geschützten App-Metadaten.
+
+Die Replizierung von Applikationen unterscheidet sich folgendermaßen von Backup und Restore von Applikationen:
+
+* *App-Replizierung*: Für Astra Control müssen die Kubernetes Quell- und Ziel-Cluster (die dasselbe Cluster sein können) verfügbar sein und mit ihren jeweiligen ONTAP Storage-Back-Ends gemanagt werden, die für die Aktivierung von NetApp SnapMirror konfiguriert sind. Astra Control repliziert den richtlinienbasierten Applikations-Snapshot auf das Ziel-Storage-Back-End. NetApp SnapMirror wird zur Replizierung der persistenten Volume-Daten eingesetzt. Zum Failover kann Astra Control die replizierte Applikation online schalten, indem die Applikationsobjekte auf dem Kubernetes Ziel-Cluster mit den replizierten Volumes auf dem ONTAP Ziel-Cluster neu erstellt werden. Da die persistenten Volume-Daten bereits auf dem Ziel-ONTAP-Cluster vorhanden sind, kann Astra Control schnelle Recovery-Zeiten für Failover bieten.
+* *App-Backup und -Wiederherstellung*: Beim Backup von Anwendungen erstellt Astra Control einen Snapshot der App-Daten und speichert diesen in einem Objekt-Storage-Bucket. Wenn eine Wiederherstellung erforderlich ist, müssen die Daten in dem Bucket auf ein persistentes Volume auf dem ONTAP Cluster kopiert werden. Der Backup-/Restore-Vorgang erfordert nicht, dass der sekundäre Kubernetes/ONTAP Cluster verfügbar und gemanagt wird. Die zusätzliche Datenkopie kann jedoch zu längeren Restore-Zeiten führen.
+
+
+Weitere Informationen zum Replizieren von Apps finden Sie unter link:../use/replicate_snapmirror.html["Replizieren von Applikationen auf einem Remote-System mit SnapMirror Technologie"].
+
+Die folgenden Images zeigen den geplanten Backup- und Wiederherstellungsprozess im Vergleich zum Replikationsprozess.
+
+Der Backup-Prozess kopiert Daten in S3 Buckets und Restores aus S3 Buckets:
+
+image:acc-backup_4in.png["Dieses Image zeigt ein geplantes Backup und eine Wiederherstellung zwischen zwei Kubernetes-Clustern mit S3-Bucket"]
+
+Andererseits wird die Replizierung zu ONTAP durchgeführt. Durch ein Failover werden die Kubernetes-Ressourcen erzeugt:
+
+image:acc-replication_4in.png["Dieses Image zeigt Replizierung und Failover zwischen zwei Kubernetes-Clustern und zwei ONTAP-Clustern "]
+
+
+
+== Backups, Snapshots und Klone mit abgelaufener Lizenz
+
+Wenn Ihre Lizenz abläuft, können Sie nur dann eine neue Applikation hinzufügen oder Vorgänge zum Schutz von Applikationen (wie Snapshots, Backups, Klone und Wiederherstellungsvorgänge) durchführen, wenn die hinzugefügte oder zu schützende Applikation eine weitere Astra Control Center-Instanz ist.
